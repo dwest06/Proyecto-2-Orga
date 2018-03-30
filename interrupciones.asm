@@ -215,6 +215,7 @@ ok_pc:
 #
 
 interup:
+	
 
 	#deshabilitar las interrupciones
 	mfc0 $k0, $12 
@@ -241,6 +242,8 @@ interup:
 
 	beq $a0 76 decrement	#cuando se aprieta L o l
 	beq $a0 108 decrement
+	
+	#beq $a0 32 pause	#cuando se aprieta barra_espaciadora
 	
 	j restore
 move_left:
@@ -373,34 +376,13 @@ restore:
 
 
 #####################################################
-#####################################################
-# Standard startup code.  Invoke the routine "main" with arguments:
-#	main(argc, argv, envp)
-#
-#	.text
-#	.globl __start
-#__start:
-#	lw $a0 0($sp)		# argc
-#	addiu $a1 $sp 4		# argv
-#	addiu $a2 $a1 4		# envp
-#	sll $v0 $a0 2
-#	addu $a2 $a2 $v0
-#	jal main
-#	nop
-
-#	li $v0 10
-#	syscall			# syscall 10 (exit)
-
-#	.globl __eoth
-#__eoth:
-
 .data
 bitmap: .space 4096	#se reserva espacio para el display
 
 posicion_barra: .word 268505012	#aqui se guarda el bit mas a la izquierda de la barra
 
 #colores de la barra
-color_barra:.word 0x0054cc 0x003c91 0x002456 0x003c91 0x0054cc
+color_barra:.word 0x0054cc 0x003c91 0x002456 0x003c90 0x0054cb
 
 #color de la pelota
 color_pelota: .word 0xffb31c
@@ -412,20 +394,25 @@ color_fondo: .word 0x111111
 color_ladrillo: .word 0x00ff00 0x00c100 0x008200
 
 #Posicion actual en X y en Y de la bola
-pos_x: .word 0
-pos_y: .word 0
+pos_x: .word 15
+pos_y: .word 30
+#direccion actual en X y Y de la bola
+dir_x: .word 0
+dir_y: .word -1
 
 #inicial: indica si el juego no ha comenzado, con cualquier interrupcion del teclado se empieza el juego
 incio: .word 0
 
+#Cantida de ladrillos, al principio son 128 = 32 casillas X 4 filas
+cantidad_ladrillos: .word 128
+
 #variabl global que indica la velocidad del juego
 T: .word 10
-#incremento
+#incremento por defecto sera 100
 INCREMENTO: .word 100
 
-p: .asciiz "algo fino para imprimir"
-q: .asciiz "temine en fin"
-pas: .asciiz "pase por el trap"
+#Timer 
+timer: .word 0
 
 ####################################
 #
@@ -512,22 +499,358 @@ inicializacion:
 			
 			lw $s3 16($s2)
 			sw $s3 16($s1)
+			
+			
+#########################
+#
+#	Timer 
+#
+###
 
-
-main:
-	beq $s7, 32 , excep
-	beq $s7, 113 , excep
+timer_func:
+	#habilitamos el timer
+	mfc0 $t0 $12
+	ori $t0 0x8000
+	mtc0 $t0 $12
 	
+	# Guardo en $11 los ciclos que debe hacer el timer antes de mandar una interrupcion
+	mfc0 $t0 $9
+	lw $t1 T
+	add $t0 $t1 $t0
+	mtc0 $t0 $11
+	
+	
+
+#################################################
+#
+#	Main, aqui el ciclo principal del juego
+#	Consta de 4 funciones de actualizacion de la posicion de la bola
+#	Registros globaes de acceso rapido:
+#		$s7 = direccion de memoria del bitmap
+###################
+
+la $s7 bitmap
+
+main:	
+	#saltar si hay un cambio generado por el timer
+	lw $t0 timer 
+	beqz $t0 sig
+	
+	jal borrar_bola
+	
+	sig:
 	
 	j main
 
-
-excep:
-	li $v0 4
-	la $a0 pas
-	teqi $s7, 32
+	#####################################################
+	#	Borra la bola del tablero
+	#	Registros usados: 
+	#		$t0 = pos_x
+	#		$t1 = pos_y
+	#		$t2 = posicion en la matriz
+	#		$t3 = color_fondo
+	borrar_bola:
+		lw $t0 pos_x
+		lw $t1 pos_y
+		lw $t3 color_fondo
+		#multiplicamos la $t1 x 128
+		
+		sll $t1 $t1 7
+		sll $t0 $t0 2
+		add $t2 $t1 $t0
+		add $t2 $t2 $s7
+		
+		#asignamos el color de fondo a la pos de $t2
+		sw $t3 0($t2)
+		
+	#####################################################
+	#	Calcula la nueva posicion que debe tomar la bola segun la direccion 
+	#	Registros usados: 
+	#		$t0 = pos_x o pos_y
+	#		$t1 = dir_x o dir_y
+	calcular_nueva_pos:
+		#actualizamos la pos en x
+		lw $t0 pos_x
+		lw $t1 dir_x
+		add $t0 $t0 $t1
+		sw $t0 pos_x
+		
+		#actualizamos la pos en y
+		lw $t0 pos_y
+		lw $t1 dir_y
+		add $t0 $t0 $t1
+		sw $t0 pos_y
+		
+	#####################################################
+	#	Dibuja la bola en la nueva posicion 
+	#	Registros usados: 
+	#		$t0 = pos_x
+	#		$t1 = pos_y
+	#		$t2 = posicion en la matriz
+	#		$t3 = color_pelota
+	dibujar_bola:
+		lw $t0 pos_x
+		lw $t1 pos_y
+		lw $t3 color_pelota
+		#multiplicamos la $t1 x 128
+		sll $t1 $t1 7
+		sll $t0 $t0 2
+		add $t2 $t1 $t0
+		add $t2 $t2 $s7
+		
+		#Colocamos el color de la bola en la posicion correspondiente
+		sw $t3 0($t2)
 	
-fin:
+	#####################################################
+	#	Verifica si en algun sentido hay algun choque.
+	#	Hay 4 tipos de choques:
+	#		- Arriba: puede ser con un ladrillo o techo
+	#		- Derecha: puede ser con un ladrillo o techo
+	#		- Izquierda: puede ser con un ladrillo o techo
+	#		- Abajo: Con la barra o ladrillo
+	#
+	#	Registros usados: 
+	#		$t0 = pos_x
+	#		$t1 = pos_y
+	#		$t2 = posicion en la matriz
+	#		$t3 = color_pelota	
+	verificar_choque:
+		###################
+		#	Verificaciones de ubicacion
+		#
+		lw $t4 color_fondo
+		la $t5 color_ladrillo
+		
+		##############################
+		#	verificacion de arriba
+		##########
+		lw $t0 pos_x
+		lw $t1 pos_y
+		
+		#restamos 1 a la pos_y para verificar el bloque de arriba|
+		subi $t1 $t1 1
+		
+		#verificamos si es techo
+		bltz $t1 a_tech
+		
+		#multiplicamos la $t1 x 128
+		sll $t1 $t1 7
+		add $t2 $t1 $t0
+		add $t2 $t2 $s7
+		lw $t3 0($t2)
+		#arriba
+		beq $t3 $t4 fin_arriba
+		
+		arriba:
+			#agarramos cada color posible de ladrillo y verificamos que la posicion
+			lw $t6 0($t5)
+			beq $t3 $t6 a_lad
+			lw $t6 4($t5)
+			beq $t3 $t6 a_lad
+			lw $t6 8($t5)
+			beq $t3 $t6 a_lad
+
+			j a_tech
+			#Eliminamos el ladrillo
+			a_lad:
+				sw $t4 0($t2)	
+			
+			#techo
+			a_tech:
+			#cambiamos la direccion de la pelota
+			lw $t1 dir_y
+			mul $t1 $t1 -1
+			sw $t1 dir_y
+		fin_arriba:
+		
+		##################################
+		#	verificacion de derecha
+		###
+		lw $t0 pos_x
+		lw $t1 pos_y
+		#sumamos 1 a la pos_x para verificar el bloque de la derecha
+		addi $t0 $t0 1
+		
+		#verificamos si no es pared
+		bgt $t0 31 d_pared
+		
+		#multiplicamos la $t1 x 128
+		sll $t1 $t1 7
+		add $t2 $t1 $t0
+		add $t2 $t2 $s7 
+		lw $t3 0($t2)
+		#derecha
+		beq $t3 $t4 fin_derecha
+		
+		derecha:
+			lw $t6 0($t5)
+			beq $t3 $t6 d_lad
+			lw $t6 4($t5)
+			beq $t3 $t6 d_lad
+			lw $t6 8($t5)
+			beq $t3 $t6 d_lad
+			
+			j d_pared
+			#ladrillo
+			d_lad:
+				#Eliminamos el ladrillo
+				sw $t4 0($t2)
+			
+			d_pared:
+				#cambiamos la direccion de la pelota
+				lw $t0 dir_x
+				mul $t0 $t0 -1
+				sw $t0 dir_x
+			
+		fin_derecha:
+		
+		#############################
+		#	verificacion de abajo
+		###
+		lw $t0 pos_x
+		lw $t1 pos_y
+		#sumamos 1 a la pos_y para verificar el bloque de abajo
+		addi $t1 $t1 1
+		
+		#verificamos que se perdio
+		bgt $t1 31 fin
+		
+		#multiplicamos la $t1 x 128
+		sll $t1 $t1 7
+		add $t2 $t1 $t0
+		add $t2 $t2 $s7
+		lw $t3 0($t2)
+		#abajo
+		beq $t3 $t4 fin_abajo
+		
+		abajo:
+			#verifico primero si es un ladrillo y lo elimino
+			lw $t6 0($t5)
+			beq $t3 $t6 ab_lad
+			lw $t6 4($t5)
+			beq $t3 $t6 ab_lad
+			lw $t6 8($t5)
+			beq $t3 $t6 ab_lad
+			
+			#ahora verifico si es la barra
+			#cambio de $t5 de ladrillo a barra
+			la $t5 color_barra
+			
+			lw $t6 0($t5)
+			bne $t3 $t6 b_1
+			lw $t6 4($t5)
+			bne $t3 $t6 b_2
+			lw $t6 8($t5)
+			bne $t3 $t6 b_3
+			lw $t6 12($t5)
+			bne $t3 $t6 b_4
+			lw $t6 16($t5)
+			bne $t3 $t6 b_5
+			
+			
+			
+			#ladrillo
+			ab_lad:
+			
+				#Eliminamos el ladrillo
+				sw $t4 0($t2)
+				
+				#cambiamos la direccion de la pelota
+				lw $t1 dir_y
+				mul $t1 $t1 -1
+				sw $t1 dir_y
+				
+				j fin_abajo
+			b_1:
+				li $t0 -1
+				li $t1 -1
+				sw $t0 dir_x
+				sw $t1 dir_y
+				
+				j fin_abajo			
+			b_2:
+				li $t0 -1
+				li $t1 -2
+				sw $t0 dir_x
+				sw $t1 dir_y
+				
+				j fin_abajo			
+			
+			b_3:
+				li $t0 0
+				li $t1 -2
+				sw $t0 dir_x
+				sw $t1 dir_y
+				
+				j fin_abajo			
+			
+			b_4:
+				li $t0 1
+				li $t1 -2
+				sw $t0 dir_x
+				sw $t1 dir_y
+				
+				j fin_abajo			
+			
+			b_5:
+				li $t0 1
+				li $t1 -1
+				sw $t0 dir_x
+				sw $t1 dir_y
+				
+				j fin_abajo			
+			
+		fin_abajo:
+		
+		#################################
+		#	verificacion de izquierda
+		###
+		lw $t0 pos_x
+		lw $t1 pos_y
+		#restamos 1 a la pos_x para verificar el bloque de la izquierda
+		subi $t0 $t0 1
+		
+		#verificamos que no se pared
+		bltz $t0 i_pared
+		
+		#multiplicamos la $t1 x 128
+		sll $t1 $t1 7
+		add $t2 $t1 $t0
+		add $t2 $t2 $s7 
+		lw $t3 0($t2)
+		#derecha
+		beq $t3 $t4 fin_izquierda
+		
+		izquierda:
+			lw $t6 0($t5)
+			beq $t3 $t6 i_lad
+			lw $t6 4($t5)
+			beq $t3 $t6 i_lad
+			lw $t6 8($t5)
+			beq $t3 $t6 i_lad
+			
+			j i_pared
+			i_lad:
+				#Eliminamos el ladrillo
+				sw $t4 0($t2)
+			
+			i_pared:
+				#cambiamos la direccion de la pelota
+				lw $t0 dir_x
+				mul $t0 $t0 -1
+				sw $t0 dir_x
+		
+		fin_izquierda:
+		
+	# Guardo en $11 los ciclos que debe hacer el timer antes de mandar una interrupcion
+	mfc0 $t0 $9
+	lw $t1 T
+	add $t0 $t1 $t0
+	mtc0 $t0 $11
+
+	jr $ra
+fin:	
+	#dibujar G O
 	
 	li $v0, 10
 	syscall	
