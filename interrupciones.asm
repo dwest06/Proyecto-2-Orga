@@ -222,6 +222,10 @@ interup:
 	subi $k0, $k0, 1		#apagamos el bit n° 0
 	mtc0 $k0, $12
 	
+	lw $a0 0xFFFF0000
+	andi $a0 $a0 1
+	beqz $a0 ktimer
+	
 	lw $a0, 0xFFFF0004
 	li $v0, 11
 	syscall
@@ -331,6 +335,11 @@ decrement:
 	#preguntar si la rapidez es negtiva
 	sw $s0 T
 	
+	j restore
+ktimer:
+	lb $s0 timer
+	not $s0, $s0
+	sb $s0 timer
 	j restore
 	
 
@@ -541,6 +550,7 @@ main:
 	sig:
 	
 	j main
+#############################################
 
 	#####################################################
 	#	Borra la bola del tablero
@@ -635,6 +645,7 @@ main:
 		
 		#multiplicamos la $t1 x 128
 		sll $t1 $t1 7
+		sll $t0 $t0 2
 		add $t2 $t1 $t0
 		add $t2 $t2 $s7
 		lw $t3 0($t2)
@@ -676,6 +687,7 @@ main:
 		
 		#multiplicamos la $t1 x 128
 		sll $t1 $t1 7
+		sll $t0 $t0 2
 		add $t2 $t1 $t0
 		add $t2 $t2 $s7 
 		lw $t3 0($t2)
@@ -717,6 +729,7 @@ main:
 		
 		#multiplicamos la $t1 x 128
 		sll $t1 $t1 7
+		sll $t0 $t0 2
 		add $t2 $t1 $t0
 		add $t2 $t2 $s7
 		lw $t3 0($t2)
@@ -815,6 +828,7 @@ main:
 		
 		#multiplicamos la $t1 x 128
 		sll $t1 $t1 7
+		sll $t0 $t0 2
 		add $t2 $t1 $t0
 		add $t2 $t2 $s7 
 		lw $t3 0($t2)
@@ -847,6 +861,10 @@ main:
 	lw $t1 T
 	add $t0 $t1 $t0
 	mtc0 $t0 $11
+	
+	lb $s0 timer
+	not $s0, $s0
+	sb $s0 timer
 
 	jr $ra
 fin:	
