@@ -122,6 +122,8 @@ v0: 	.word 0
 a0: 	.word 0
 s0:	.word 0
 s1:	.word 0
+count: 	.word 0
+compare: .word 0
 
 
 #####################################################
@@ -153,6 +155,11 @@ s1:	.word 0
 	sw $a0 a0               # But we need to use these registers
 	sw $s0 s0
 	sw $s1 s1
+	
+	mfc0 $k0 $9  		#guardo el valor del count para que no cuente mientras ocurre la instruccion
+	sw $k0 count
+	mfc0 $k0 $11		#al igual que el valor de compare
+	sw $k0 compare
 
 #####################################################
 #	Extract information about de exception and verify if was an interruption
@@ -221,18 +228,23 @@ ok_pc:
 #
 
 interup:
+	#cargamos en a0 el codigo ascii de la tecla que genero la interrupcion
+	lw $a0, 0xFFFF0004
+	li $v0, 11
+	syscall		#La imprimimos
+	
+	move $t8 $a0	# La almacenamos en t8 y usarla en el main de juego
+	
+	sw $zero 0xFFFF0004
+	
+	#############
+	#beq $t8 32 pausar #pausamos el juego cmabiando una variable
+	#############
 	
 	lw $a0 0xFFFF0000
 	andi $a0 $a0 1
 	beqz $a0 ktimer
 	
-	lw $a0, 0xFFFF0004
-	li $v0, 11
-	syscall
-	
-	move $t8 $a0
-	
-	#beq $a0 32 pause	#cuando se aprieta barra_espaciadora
 	j restore
 	
 ktimer:
@@ -241,8 +253,12 @@ ktimer:
 	sb $s0 timer
 	j restore
 	
+pausar:
+	lb $s0 pause
+	not $s0 $s0
+	sw $s0 pause
+	j restore
 	
-
 #####################################################
 # Return from (non-interrupt) exception. Skip offending
 # instruction at EPC to avoid infinite loop.
@@ -273,6 +289,12 @@ restore:
 	mfc0 $k0 $12            # Set Status register
 	ori  $k0 0x1            # Interrupts enabled
 	mtc0 $k0 $12
+	
+	lw $k0 count
+	mtc0 $k0 $9  		#Devuelvo el valor del count
+	lw $k0 compare
+	mtc0 $k0 $11		#al igual que el valor de compare
+	
 
 
 #####################################################

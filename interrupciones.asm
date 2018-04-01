@@ -47,13 +47,14 @@ cantidad_ladrillos: .word 128
 #variabl global que indica la velocidad del juego
 T: .word 100
 #incremento por defecto sera 100
-INCREMENTO: .word 100
+INCREMENTO: .word 10
 
 #Timer 
 timer: .word 0
 
 p: .asciiz "posicion: "
 
+pause: .word 1
 ####################################
 #
 .text
@@ -108,7 +109,6 @@ inicializacion:
 			#Usada solo para probar
 			addi $s1 $s1 3328
 		#	addi $s0 $s0 4
-			
 		#	j loop
 		finloop:
 			#dibujamos la pelota
@@ -122,9 +122,6 @@ inicializacion:
 			#dibujamos la barra
 			addi $s1 $s1 52
 			
-			li $v0 1
-			move $a0 $s1
-			syscall
 			sw $s1 posicion_barra
 			
 			lw $s3 0($s2)
@@ -160,8 +157,54 @@ timer_func:
 	lw $t1 T
 	add $t0 $t1 $t0
 	mtc0 $t0 $11
+
+########################
+#
+#	Randomiza la primera direccion de X y Y
+#
+
+#Hacemos syscall del tiempo para que de un numero distinto siempre
+li $v0 30 	#se gaurda en $a0 el tiempo
+syscall
+
+move $a1 $a0
+
+li $v0 40 	#colocar la semilla 
+syscall
+
+li $v0 42
+li $a0 1 
+li $a1 2
+syscall		# se genera un numero random entre 0 y 2
+subi $a0 $a0 1 	#movemos el resultado entre -1 y 1
+
+sw $a0 dir_x
+
+generar_dir_y:
 	
+	li $v0 42
+	li $a0 1 
+	li $a1 2
+	syscall		# se genera un numero random entre 0 y 2
 	
+	beqz $a0 generar_dir_y #volvemos a generar el numero aleatoriao
+	mul $a0 $a0 -1
+	sw $a0 dir_y
+	
+############################################
+#	Sonido de inicio
+######################
+
+li $v0 33
+li $a0 57
+li $a1 100
+li $a2 8
+li $a3 100
+syscall
+
+li $a1 200
+syscall
+
 
 #################################################
 #
@@ -169,13 +212,20 @@ timer_func:
 #	Consta de 4 funciones de actualizacion de la posicion de la bola
 #	Registros globaes de acceso rapido:
 #		$s7 = direccion de memoria del bitmap
+#		$t8 = valor de la interrupcion
 ###################
 
 la $s7 bitmap
 
 main:	
 	#saltar si hay un cambio generado por el timer
-	lw $t0 timer 
+	lw $t0 timer
+######################################
+#Pausa cuando se toca la barra
+#pausa: 
+#	lw $t1 pause
+#	beqz $t1 pausa
+#########################################
 	beqz $t0 sig
 	
 	jal borrar_bola
@@ -320,6 +370,14 @@ main:
 			lw $t1 dir_y
 			mul $t1 $t1 -1
 			sw $t1 dir_y
+		
+		#sonido 
+		li $v0 31
+		li $a0 57
+		li $a1 100
+		li $a2 8
+		li $a3 100
+		syscall
 		fin_arriba:
 		
 		##################################
@@ -361,6 +419,13 @@ main:
 				lw $t0 dir_x
 				mul $t0 $t0 -1
 				sw $t0 dir_x
+		#sonido 
+		li $v0 31
+		li $a0 57
+		li $a1 100
+		li $a2 8
+		li $a3 100
+		syscall
 			
 		fin_derecha:
 		
@@ -381,7 +446,7 @@ main:
 		add $t2 $t1 $t0
 		add $t2 $t2 $s7
 		
-		#en t3 se guarda la posicion de a verificar
+		#en t3 se guarda la posicion bajo la bola a verificar
 		lw $t3 0($t2)
 		#abajo
 		beq $t3 $t4 fin_abajo
@@ -423,6 +488,14 @@ main:
 				mul $t1 $t1 -1
 				sw $t1 dir_y
 				
+			#sonido 
+			li $v0 31
+			li $a0 57
+			li $a1 100
+			li $a2 8
+			li $a3 100
+			syscall
+				
 				j fin_abajo
 			b_1:
 				li $t0 -1
@@ -430,12 +503,28 @@ main:
 				sw $t0 dir_x
 				sw $t1 dir_y
 				
+				#sonido 
+				li $v0 31
+				li $a0 69
+				li $a1 100
+				li $a2 8
+				li $a3 100
+				syscall
+				
 				j fin_abajo			
 			b_2:
 				li $t0 -1
 				li $t1 -2
 				sw $t0 dir_x
 				sw $t1 dir_y
+				
+				#sonido 
+				li $v0 31
+				li $a0 69
+				li $a1 100
+				li $a2 8
+				li $a3 100
+				syscall
 				
 				j fin_abajo			
 			
@@ -445,6 +534,14 @@ main:
 				sw $t0 dir_x
 				sw $t1 dir_y
 				
+				#sonido 
+				li $v0 31
+				li $a0 69
+				li $a1 100
+				li $a2 8
+				li $a3 100
+				syscall
+				
 				j fin_abajo			
 			
 			b_4:
@@ -453,6 +550,14 @@ main:
 				sw $t0 dir_x
 				sw $t1 dir_y
 				
+				#sonido 
+				li $v0 31
+				li $a0 69
+				li $a1 100
+				li $a2 8
+				li $a3 100
+				syscall
+				
 				j fin_abajo			
 			
 			b_5:
@@ -460,6 +565,14 @@ main:
 				li $t1 -1
 				sw $t0 dir_x
 				sw $t1 dir_y
+				
+				#sonido 
+				li $v0 31
+				li $a0 69
+				li $a1 100
+				li $a2 8
+				li $a3 100
+				syscall
 				
 				j fin_abajo			
 			
@@ -503,6 +616,13 @@ main:
 				lw $t0 dir_x
 				mul $t0 $t0 -1
 				sw $t0 dir_x
+		#sonido 
+		li $v0 31
+		li $a0 57
+		li $a1 100
+		li $a2 8
+		li $a3 100
+		syscall
 		
 		fin_izquierda:
 		
@@ -534,9 +654,23 @@ move_left:
 	lw $s0, posicion_barra
 	subi $s0 $s0 4
 	
+	move $t8 $zero #pongo en t8 0 para que no se vuelva a meter
+	
+	##########################
+	#	PRUEBA
+	#########################
+	li $v0 1
+	move $a0 $t8
+	syscall
+	li $v0 11
+	li $a0 10
+	syscall
+	#########################
+	
 	#verificar si esta chocando con la pared izquierda
 	lw $s1 pos_x_barra
 	subi $s1 $s1 1
+	
 	
 	##########################
 	#	PRUEBA
@@ -552,7 +686,10 @@ move_left:
 	syscall
 	##########################
 	
-	beqz $s1 main
+	ble $s1 -1 main
+	
+	li $a0 65
+	syscall
 	
 	#si no, encender el siguiente bit mas a la izquierda y apagar el mas hacia la derecha
 	la $s1 color_barra
@@ -583,13 +720,26 @@ move_left:
 	#actualizar la posicion_barra
 	sw $s0 posicion_barra
 	
-	move $t8 $zero
 	
 	j main
 	
 move_right:
 	lw $s0 posicion_barra
 	addi $s0 $s0 4
+
+	move $t8 $zero  #pongo en t8 0 para qe no se vuelva a repetir
+	
+	##########################
+	#	PRUEBA
+	#########################
+	li $v0 1
+	move $a0 $t8
+	syscall
+	li $v0 11
+	li $a0 10
+	syscall
+	###########################
+
 	#verificamos si esta chocando con la pared derecha
 	lw $s1 pos_x_barra
 	addi $s1 $s1 5
@@ -606,7 +756,10 @@ move_right:
 	li $a0 10
 	syscall
 	##########################
-	bge $s1 32 main
+	bgt $s1 31 main
+	
+	li $a0 65
+	syscall
 	
 	#si no, encendemos el siguiente bit mas a la derecha y apagar el mas hacia la izquierda
 	la $s1 color_barra
@@ -638,7 +791,7 @@ move_right:
 	add $s0 $s0 4
 	sw $s0 posicion_barra
 	
-	move $t8 $zero
+
 	
 	j main
 	
@@ -666,6 +819,20 @@ decrement:
 
 fin:	
 	#dibujar G O
+	#sonido 
+	li $v0 33
+	li $a0 60
+	li $a1 100
+	li $a2 8
+	li $a3 100
+	syscall	
+	
+	li $a0 55
+	syscall
+	
+	li $a0 48
+	li $a1 300
+	syscall
 	
 	li $v0, 10
 	syscall	
