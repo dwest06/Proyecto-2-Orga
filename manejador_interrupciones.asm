@@ -160,6 +160,8 @@ compare: .word 0
 	sw $k0 count
 	mfc0 $k0 $11		#al igual que el valor de compare
 	sw $k0 compare
+	
+	
 
 #####################################################
 #	Extract information about de exception and verify if was an interruption
@@ -228,6 +230,10 @@ ok_pc:
 #
 
 interup:
+	lw $a0 0xFFFF0000
+	andi $a0 $a0 1
+	beqz $a0 ktimer
+	
 	#cargamos en a0 el codigo ascii de la tecla que genero la interrupcion
 	lw $a0, 0xFFFF0004
 	li $v0, 11
@@ -235,15 +241,13 @@ interup:
 	
 	move $t8 $a0	# La almacenamos en t8 y usarla en el main de juego
 	
-	sw $zero 0xFFFF0004
+	#sw $zero 0xFFFF0004 #Borramos la direccion de memoria para evitar 
 	
 	#############
 	#beq $t8 32 pausar #pausamos el juego cmabiando una variable
 	#############
 	
-	lw $a0 0xFFFF0000
-	andi $a0 $a0 1
-	beqz $a0 ktimer
+	
 	
 	j restore
 	
@@ -275,11 +279,7 @@ ret:
 # Restore registers and reset procesor state
 #
 restore:
-	lw $v0 v0               # Restore $v0 and $a0
-	lw $a0 a0
-	lw $s0 s0
-	lw $s1 s1
-
+	
 	.set noat
 	move $at $k1            # Restore $at
 	.set at
@@ -290,10 +290,24 @@ restore:
 	ori  $k0 0x1            # Interrupts enabled
 	mtc0 $k0 $12
 	
-	lw $k0 count
-	mtc0 $k0 $9  		#Devuelvo el valor del count
-	lw $k0 compare
-	mtc0 $k0 $11		#al igual que el valor de compare
+	lw $s0 count
+	mtc0 $s0 $9  		#Devuelvo el valor del count
+	lw $s1 compare
+	mtc0 $s1 $11		#al igual que el valor de compare
+	
+	blt $s0 $s1 sigui
+	
+	#si el count es igual o mayor que el compare, se puede quedar paralizado el juego, se reinician
+	lw $s0 T
+	mtc0 $0 $9
+	mtc0 $s0 $11
+	
+	sigui:
+	
+	lw $v0 v0               # Restore $v0 and $a0
+	lw $a0 a0
+	lw $s0 s0
+	lw $s1 s1
 	
 
 
