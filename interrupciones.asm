@@ -45,9 +45,9 @@ incio: .word 0
 cantidad_ladrillos: .word 128
 
 #variabl global que indica la velocidad del juego
-T: .word 100
+T: .word 10
 #incremento por defecto sera 100
-INCREMENTO: .word 10
+INCREMENTO: .word 100
 
 #Timer 
 timer: .word 0
